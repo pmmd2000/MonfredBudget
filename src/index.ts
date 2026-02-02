@@ -2,9 +2,9 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { jwt, sign, verify } from 'hono/jwt'
 
-type Bindings = {
-    DB: D1Database
-    JWT_SECRET: string
+DB: D1Database
+JWT_SECRET: string
+ASSETS: Fetcher
 }
 
 type User = {
@@ -328,6 +328,11 @@ app.get('/sync', async (c) => {
         accounts: accounts.results,
         transactions: transactions.results
     })
+})
+
+// ASSETS Fallback (SPA Routing)
+app.get('*', async (c) => {
+    return await c.env.ASSETS.fetch(c.req.raw)
 })
 
 export default app
