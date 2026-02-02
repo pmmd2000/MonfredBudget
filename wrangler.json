@@ -1,0 +1,12 @@
+{
+  "name": "mehrdad-app-backend",
+  "compatibility_date": "2024-04-01",
+  "pages_build_output_dir": "./public",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mehrdad-app",
+      "database_id": "5d6ed579-3176-4ad0-adb6-fdf87295bb12"
+    }
+  ]
+}
