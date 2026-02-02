@@ -250,6 +250,19 @@ app.delete('/transactions/:id', async (c) => {
     return c.json({ error: 'Failed' }, 500)
 })
 
+app.get('/history', async (c) => {
+    const userId = c.get('userId') as number
+    const { results } = await c.env.DB.prepare(`
+        SELECT h.*, a.name as account_name 
+        FROM transaction_history h 
+        JOIN accounts a ON h.account_id = a.id 
+        WHERE a.user_id = ? 
+        ORDER BY h.changed_at DESC
+        LIMIT 100
+    `).bind(userId).all<TransactionHistory & { account_name: string }>()
+    return c.json(results)
+})
+
 // --- History & Revert ---
 
 app.get('/transactions/:id/history', async (c) => {

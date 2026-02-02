@@ -21,6 +21,18 @@ const router = createRouter({
             name: 'history',
             component: () => import('../views/TransactionHistoryView.vue'),
             meta: { requiresAuth: true }
+        },
+        {
+            path: '/global-history',
+            name: 'global-history',
+            component: () => import('../views/GlobalHistoryView.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/export',
+            name: 'export',
+            component: () => import('../views/ExportView.vue'),
+            meta: { requiresAuth: true }
         }
     ]
 })

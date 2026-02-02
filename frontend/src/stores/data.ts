@@ -37,6 +37,7 @@ export const useDataStore = defineStore('data', () => {
     const accounts = ref<Account[]>([])
     const transactions = ref<Transaction[]>([])
     const history = ref<TransactionHistory[]>([])
+    const globalHistory = ref<(TransactionHistory & { account_name?: string })[]>([])
 
     async function sync() {
         const { data } = await axios.get(`${API_URL}/sync`)
@@ -74,16 +75,23 @@ export const useDataStore = defineStore('data', () => {
         history.value = data
     }
 
+    async function fetchGlobalHistory() {
+        const { data } = await axios.get(`${API_URL}/history`)
+        globalHistory.value = data
+    }
+
     async function revertTransaction(id: number, historyId: number) {
         await axios.post(`${API_URL}/transactions/${id}/revert`, { history_id: historyId })
         await sync()
         await fetchHistory(id)
+        await fetchGlobalHistory()
     }
 
     return {
         accounts,
         transactions,
         history,
+        globalHistory,
         sync,
         createAccount,
         deleteAccount,
@@ -91,6 +99,7 @@ export const useDataStore = defineStore('data', () => {
         updateTransaction,
         deleteTransaction,
         fetchHistory,
+        fetchGlobalHistory,
         revertTransaction
     }
 })

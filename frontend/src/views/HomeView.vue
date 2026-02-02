@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useDataStore } from '../stores/data'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
@@ -22,8 +22,10 @@ const router = useRouter()
 
 const showAccountDialog = ref(false)
 const showTxDialog = ref(false)
+const showExportDialog = ref(false)
 const newAccountName = ref('')
 const newAccountBalance = ref(0)
+const editingTxId = ref<number | null>(null)
 
 const txForm = ref<{
     account_id: number
@@ -39,7 +41,17 @@ const txForm = ref<{
     date: Date.now()
 })
 
+const exportOptions = ref({
+    limit: 10,
+    type: 'last' // 'last' or 'range'
+})
+
 const transactionTypes = ['EXPENSE', 'INCOME']
+
+// Totals Computed
+const totalIncome = computed(() => store.transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0))
+const totalExpense = computed(() => store.transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + t.amount, 0))
+const netBalance = computed(() => totalIncome.value - totalExpense.value)
 
 onMounted(() => {
     store.sync()
@@ -52,13 +64,37 @@ const createAccount = async () => {
     newAccountBalance.value = 0
 }
 
-const createTx = async () => {
-    await store.createTransaction(txForm.value)
+const saveTx = async () => {
+    if (editingTxId.value) {
+        await store.updateTransaction(editingTxId.value, txForm.value)
+    } else {
+        await store.createTransaction(txForm.value)
+    }
     showTxDialog.value = false
+    editingTxId.value = null
 }
 
 const openTxDialog = () => {
-    if(store.accounts.length > 0 && store.accounts[0]) txForm.value.account_id = store.accounts[0].id
+    editingTxId.value = null
+    txForm.value = {
+        account_id: store.accounts.length > 0 ? store.accounts[0].id : 0,
+        amount: 0,
+        type: 'EXPENSE',
+        description: '',
+        date: Date.now()
+    }
+    showTxDialog.value = true
+}
+
+const editTx = (tx: any) => {
+    editingTxId.value = tx.id
+    txForm.value = {
+        account_id: tx.account_id,
+        amount: tx.amount,
+        type: tx.type,
+        description: tx.description || '',
+        date: tx.date
+    }
     showTxDialog.value = true
 }
 
@@ -70,6 +106,16 @@ const deleteTx = async (id: number) => {
     if(confirm('Delete transaction?')) {
         await store.deleteTransaction(id)
     }
+}
+
+const exportData = () => {
+    const limit = exportOptions.value.limit
+    // Simply print the current view or redirect to a print page?
+    // User requested "Export Modal", "Printable HTML". 
+    // Let's open a new window with the export view
+    const url = router.resolve({ name: 'export', query: { limit: limit.toString() } }).href
+    window.open(url, '_blank')
+    showExportDialog.value = false
 }
 </script>
 
@@ -86,9 +132,43 @@ const deleteTx = async (id: number) => {
                 </div>
             </template>
             <template #end>
-                <Button label="خروج" icon="pi pi-sign-out" severity="secondary" text @click="auth.logout" />
+                <div class="flex gap-2">
+                    <Button label="تاریخچه کلی" icon="pi pi-history" severity="secondary" text @click="router.push('/global-history')" />
+                    <Button label="خروجی" icon="pi pi-print" severity="help" text @click="showExportDialog = true" />
+                    <Button label="خروج" icon="pi pi-sign-out" severity="secondary" text @click="auth.logout" />
+                </div>
             </template>
         </Toolbar>
+
+        <!-- Totals Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <Card class="bg-green-50 border-s-4 border-green-500 shadow-sm">
+                <template #content>
+                    <div class="flex flex-col">
+                        <span class="text-surface-600 mb-1">مجموع درآمد</span>
+                        <div class="text-2xl font-bold text-green-600">{{ formatCurrency(totalIncome) }} ریال</div>
+                    </div>
+                </template>
+            </Card>
+            <Card class="bg-red-50 border-s-4 border-red-500 shadow-sm">
+                <template #content>
+                    <div class="flex flex-col">
+                        <span class="text-surface-600 mb-1">مجموع هزینه</span>
+                        <div class="text-2xl font-bold text-red-600">{{ formatCurrency(totalExpense) }} ریال</div>
+                    </div>
+                </template>
+            </Card>
+            <Card class="bg-blue-50 border-s-4 border-blue-500 shadow-sm">
+                <template #content>
+                    <div class="flex flex-col">
+                        <span class="text-surface-600 mb-1">تراز کلی</span>
+                        <div class="text-2xl font-bold" :class="netBalance >= 0 ? 'text-blue-600' : 'text-red-600'">
+                            {{ formatCurrency(netBalance) }} ریال
+                        </div>
+                    </div>
+                </template>
+            </Card>
+        </div>
 
         <!-- Accounts Grid -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -144,6 +224,7 @@ const deleteTx = async (id: number) => {
                     <Column header="عملیات" class="text-right">
                         <template #body="slotProps">
                             <div class="flex gap-2">
+                                <Button icon="pi pi-pencil" text rounded severity="warn" @click="editTx(slotProps.data)" v-tooltip="'Edit'" />
                                 <Button icon="pi pi-history" text rounded severity="info" @click="viewHistory(slotProps.data.id)" v-tooltip="'History / Undo'" />
                                 <Button icon="pi pi-trash" text rounded severity="danger" @click="deleteTx(slotProps.data.id)" />
                             </div>
@@ -171,7 +252,7 @@ const deleteTx = async (id: number) => {
             </div>
         </Dialog>
 
-        <Dialog v-model:visible="showTxDialog" modal header="تراکنش جدید" :style="{ width: '30rem' }">
+        <Dialog v-model:visible="showTxDialog" modal :header="editingTxId ? 'ویرایش تراکنش' : 'تراکنش جدید'" :style="{ width: '30rem' }">
             <div class="flex flex-col gap-4 mb-4">
                 <div class="flex flex-col gap-2">
                     <label>حساب</label>
@@ -201,7 +282,21 @@ const deleteTx = async (id: number) => {
             </div>
             <div class="flex justify-end gap-2">
                 <Button type="button" label="انصراف" severity="secondary" @click="showTxDialog = false"></Button>
-                <Button type="button" label="ثبت" @click="createTx"></Button>
+                <Button type="button" label="ثبت" @click="saveTx"></Button>
+            </div>
+        </Dialog>
+
+        <!-- Export Dialog -->
+        <Dialog v-model:visible="showExportDialog" modal header="خروجی گرفتن" :style="{ width: '25rem' }">
+             <div class="flex flex-col gap-4 mb-4">
+                <div class="flex flex-col gap-2">
+                    <label>تعداد آیتم‌ها</label>
+                    <Dropdown v-model="exportOptions.limit" :options="[10, 20, 50, 100, 1000]" class="text-right" />
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                 <Button type="button" label="انصراف" severity="secondary" @click="showExportDialog = false"></Button>
+                <Button type="button" label="مشاهده فایل چاپی" icon="pi pi-print" @click="exportData"></Button>
             </div>
         </Dialog>
     </div>
