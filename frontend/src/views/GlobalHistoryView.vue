@@ -58,11 +58,16 @@ const getIcon = (changeType: string) => {
                             <i :class="getIcon(slotProps.item.change_type)"></i>
                         </span>
                     </template>
-                    <template #content="slotProps">
-                        <Card class="mt-4 mb-8 border border-surface-200 dark:border-surface-200 bg-surface-50 dark:bg-gray-50 text-surface-900 dark:text-black">
+                     <template #content="slotProps">
+                        <Card class="mt-4 mb-8 border border-surface-200 dark:border-surface-200 bg-surface-50 dark:bg-gray-50 text-surface-900 dark:text-black"
+                            :class="{ 'opacity-50 grayscale': slotProps.item.is_overwritten }">
                              <template #title>
                                 <div class="flex items-center gap-2">
-                                    <span>{{ slotProps.item.change_type === 'CREATE' ? 'ایجاد' : (slotProps.item.change_type === 'UPDATE' ? 'ویرایش' : (slotProps.item.change_type === 'DELETE' ? 'حذف' : 'بازگردانی')) }}</span>
+                                    <span>{{ slotProps.item.change_type === 'CREATE' ? 'ایجاد' : (slotProps.item.change_type === 'UPDATE' ? 'تغییر' : (slotProps.item.change_type === 'DELETE' ? 'حذف' : 'بازگردانی')) }}</span>
+                                    <span v-if="slotProps.item.account_name" class="text-sm font-normal text-gray-500">({{ slotProps.item.account_name }})</span>
+                                    <span v-if="slotProps.item.is_overwritten" class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">بازنویسی شده</span>
+                                </div>
+                            </template>
                                     <span v-if="slotProps.item.account_name" class="text-sm font-normal text-gray-500">({{ slotProps.item.account_name }})</span>
                                 </div>
                             </template>
@@ -77,6 +82,7 @@ const getIcon = (changeType: string) => {
                                     <div v-if="slotProps.item.is_deleted" class="text-red-500 font-bold mt-2">این آیتم حذف شده است</div>
                                     
                                     <Button label="بازگشت به این زمان" 
+                                        v-if="!slotProps.item.is_overwritten"
                                         icon="pi pi-undo" 
                                         size="small" 
                                         severity="danger" 

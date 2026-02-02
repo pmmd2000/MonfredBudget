@@ -43,5 +43,6 @@ CREATE TABLE IF NOT EXISTS transaction_history (
     is_deleted INTEGER,
     change_type TEXT CHECK(change_type IN ('CREATE', 'UPDATE', 'DELETE', 'RESTORE')),
     changed_at INTEGER DEFAULT (unixepoch()),
+    is_overwritten INTEGER DEFAULT 0,
     FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
 );

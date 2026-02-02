@@ -327,7 +327,6 @@ const toggleMenu = (event: any) => {
                         <template #body="slotProps">
                             <div class="flex gap-2">
                                 <Button icon="pi pi-pencil" text rounded severity="warn" @click="editTx(slotProps.data)" v-tooltip="'Edit'" />
-                                <Button icon="pi pi-history" text rounded severity="info" @click="viewHistory(slotProps.data.id)" v-tooltip="'History / Undo'" />
                                 <Button icon="pi pi-trash" text rounded severity="danger" @click="deleteTx(slotProps.data.id)" />
                             </div>
                         </template>
