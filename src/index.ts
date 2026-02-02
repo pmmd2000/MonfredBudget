@@ -58,7 +58,7 @@ app.use('/*', async (c, next) => {
 
     const token = authHeader.replace('Bearer ', '')
     try {
-        const payload = await verify(token, c.env.JWT_SECRET)
+        const payload = await verify(token, c.env.JWT_SECRET, 'HS256')
         c.set('userId', payload.sub) // Set user ID for route handlers
         await next()
     } catch (e: any) {
@@ -93,7 +93,7 @@ app.post('/auth/login', async (c) => {
             return c.json({ error: 'Invalid credentials' }, 401)
         }
 
-        const token = await sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 }, c.env.JWT_SECRET)
+        const token = await sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 }, c.env.JWT_SECRET, 'HS256')
         return c.json({ token, user: { id: user.id, username: user.username } })
     } catch (e: any) {
         return c.json({ error: 'Login failed', details: e.message || String(e) }, 500)
