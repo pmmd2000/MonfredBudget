@@ -2,9 +2,10 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { jwt, sign, verify } from 'hono/jwt'
 
-DB: D1Database
-JWT_SECRET: string
-ASSETS: Fetcher
+type Bindings = {
+    DB: D1Database
+    JWT_SECRET: string
+    ASSETS: Fetcher
 }
 
 type User = {
