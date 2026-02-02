@@ -104,7 +104,17 @@ const sortedTransactions = computed(() => {
     // If tx is INCOME, it added to balance, so previous balance was Current - Amount.
     // If tx is EXPENSE, it subtracted from balance, so previous balance was Current + Amount.
 
-    let currentBalance = store.accounts.reduce((sum, acc) => sum + acc.balance, 0)
+    // 2. Calculate running balance (accumulative total)
+    // The user wants: "the first row's total is the accumalation of all of the rows before that"
+    // Since we are showing NEWEST first (DESC), the logic is a bit tricky.
+    // Logic: 
+    // Total Net Worth (current) = Total Income - Total Expense (per user request to match 'Traz Kolli')
+    // The first row (topmost, newest) should show this Total Net Worth as its balance (AFTER the tx).
+    // Then we subtract the amount of the current row to find the balance for the next row.
+    // If tx is INCOME, it added to balance, so previous balance was Current - Amount.
+    // If tx is EXPENSE, it subtracted from balance, so previous balance was Current + Amount.
+
+    let currentBalance = netBalance.value
 
     return sorted.map(tx => {
         const balanceAfterDoc = currentBalance
@@ -181,28 +191,6 @@ const deleteTx = async (id: number) => {
 const exportData = async () => {
     const limit = exportOptions.value.limit
     
-    // Check for native share
-    if (navigator.share) {
-        // Generate a text summary
-         const txsToShare = sortedTransactions.value.slice(0, limit)
-         let text = `گزارش تراکنش‌ها (${limit} عدد آخر):\n\n`
-         txsToShare.forEach(tx => {
-             text += `${formatDate(tx.date)} - ${tx.description} - ${tx.type === 'INCOME' ? '+' : '-'}${formatCurrency(tx.amount)}\n`
-         })
-
-        try {
-            await navigator.share({
-                title: 'تراکنش‌های مالی',
-                text: text
-            })
-            showExportDialog.value = false
-            return
-        } catch (err) {
-            console.error('Share failed:', err)
-            // Fallback to old method
-        }
-    }
-
     const url = router.resolve({ name: 'export', query: { limit: limit.toString() } }).href
     window.open(url, '_blank')
     showExportDialog.value = false
