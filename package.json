@@ -3,8 +3,8 @@
     "version": "1.0.0",
     "description": "Backend for Persian Transaction Tracker",
     "scripts": {
-        "dev": "wrangler pages dev public",
-        "deploy": "wrangler pages deploy public",
+        "dev": "wrangler dev",
+        "deploy": "wrangler deploy",
         "build": "exit 0"
     },
     "dependencies": {

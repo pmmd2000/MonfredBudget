@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { handle } from 'hono/cloudflare-pages'
 import { cors } from 'hono/cors'
 
 type Bindings = {
@@ -103,4 +102,4 @@ app.delete('/transactions/:id', async (c) => {
     }
 })
 
-export const onRequest = handle(app)
+export default app
