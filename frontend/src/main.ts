@@ -10,11 +10,22 @@ import router from './router'
 
 import './style.css'
 import 'primeicons/primeicons.css'
+import Vue3PersianDatetimePicker from 'vue3-persian-datetime-picker'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+app.use(Vue3PersianDatetimePicker, {
+    name: 'PersianDatePicker',
+    props: {
+        format: 'x', // unix timestamp
+        displayFormat: 'jYYYY/jMM/jDD',
+        editable: false,
+        inputClass: 'p-inputtext p-component w-full text-right',
+        color: '#3b82f6',
+    }
+})
 app.use(PrimeVue, {
     theme: {
         preset: Aura,

@@ -5,7 +5,11 @@ export default {
         "./src/**/*.{vue,js,ts,jsx,tsx}",
     ],
     theme: {
-        extend: {},
+        extend: {
+            fontFamily: {
+                sans: ['Vazirmatn', 'sans-serif'],
+            }
+        },
     },
     plugins: [require('tailwindcss-primeui')],
 }

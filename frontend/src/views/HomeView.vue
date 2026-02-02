@@ -14,12 +14,16 @@ import Dropdown from 'primevue/dropdown'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Toolbar from 'primevue/toolbar'
+import Drawer from 'primevue/drawer'
+import InputGroup from 'primevue/inputgroup'
+import InputGroupAddon from 'primevue/inputgroupaddon'
 import Tag from 'primevue/tag'
 
 const store = useDataStore()
 const auth = useAuthStore()
 const router = useRouter()
 
+const showAccountDrawer = ref(false)
 const showAccountDialog = ref(false)
 const showTxDialog = ref(false)
 const showExportDialog = ref(false)
@@ -133,6 +137,7 @@ const exportData = () => {
             </template>
             <template #end>
                 <div class="flex gap-2">
+                    <Button label="حساب‌ها" icon="pi pi-wallet" severity="info" text @click="showAccountDrawer = true" />
                     <Button label="تاریخچه کلی" icon="pi pi-history" severity="secondary" text @click="router.push('/global-history')" />
                     <Button label="خروجی" icon="pi pi-print" severity="help" text @click="showExportDialog = true" />
                     <Button label="خروج" icon="pi pi-sign-out" severity="secondary" text @click="auth.logout" />
@@ -140,13 +145,36 @@ const exportData = () => {
             </template>
         </Toolbar>
 
+        <!-- Account Drawer -->
+        <Drawer v-model:visible="showAccountDrawer" header="لیست حساب‌ها" position="right" class="!w-full md:!w-80">
+            <div class="flex flex-col gap-4">
+                <div class="space-y-3">
+                    <Card v-for="acc in store.accounts" :key="acc.id" class="shadow-sm border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900">
+                        <template #title>
+                            <div class="flex justify-between items-center text-base">
+                                <span>{{ acc.name }}</span>
+                                <i class="pi pi-wallet text-primary-500"></i>
+                            </div>
+                        </template>
+                        <template #content>
+                            <div class="text-xl font-bold text-surface-900 dark:text-surface-0">
+                                {{ formatCurrency(acc.balance) }}
+                            </div>
+                        </template>
+                    </Card>
+                </div>
+                
+                <Button label="افزودن حساب جدید" icon="pi pi-plus" outlined class="w-full" @click="showAccountDialog = true" />
+            </div>
+        </Drawer>
+
         <!-- Totals Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
              <Card class="bg-green-50 border-s-4 border-green-500 shadow-sm">
                 <template #content>
                     <div class="flex flex-col">
                         <span class="text-surface-600 mb-1">مجموع درآمد</span>
-                        <div class="text-2xl font-bold text-green-600">{{ formatCurrency(totalIncome) }} ریال</div>
+                        <div class="text-2xl font-bold text-green-600">{{ formatCurrency(totalIncome) }}</div>
                     </div>
                 </template>
             </Card>
@@ -154,7 +182,7 @@ const exportData = () => {
                 <template #content>
                     <div class="flex flex-col">
                         <span class="text-surface-600 mb-1">مجموع هزینه</span>
-                        <div class="text-2xl font-bold text-red-600">{{ formatCurrency(totalExpense) }} ریال</div>
+                        <div class="text-2xl font-bold text-red-600">{{ formatCurrency(totalExpense) }}</div>
                     </div>
                 </template>
             </Card>
@@ -163,35 +191,16 @@ const exportData = () => {
                     <div class="flex flex-col">
                         <span class="text-surface-600 mb-1">تراز کلی</span>
                         <div class="text-2xl font-bold" :class="netBalance >= 0 ? 'text-blue-600' : 'text-red-600'">
-                            {{ formatCurrency(netBalance) }} ریال
+                            {{ formatCurrency(netBalance) }}
                         </div>
                     </div>
                 </template>
             </Card>
         </div>
 
-        <!-- Accounts Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card v-for="acc in store.accounts" :key="acc.id" class="shadow-md hover:shadow-lg transition-shadow bg-white dark:bg-white">
-                <template #title>
-                    <div class="flex justify-between items-center">
-                        <span>{{ acc.name }}</span>
-                        <i class="pi pi-wallet text-primary-500"></i>
-                    </div>
-                </template>
-                <template #content>
-                    <div class="text-3xl font-bold text-surface-900 dark:text-black">
-                        {{ formatCurrency(acc.balance) }} ریال
-                    </div>
-                </template>
-            </Card>
-            
-            <!-- Add Account Button Card -->
-            <button @click="showAccountDialog = true" class="flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed border-surface-300 hover:border-primary-500 hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors h-full min-h-[140px]">
-                <i class="pi pi-plus text-2xl mb-2 text-surface-400"></i>
-                <span class="font-semibold text-surface-500">افزودن حساب</span>
-            </button>
-        </div>
+
+
+        <!-- Accounts Grid Moved to Drawer -->
 
         <!-- Transactions Table -->
         <Card class="shadow-lg bg-white dark:bg-white text-surface-900 dark:text-black">
@@ -243,7 +252,11 @@ const exportData = () => {
                 </div>
                 <div class="flex flex-col gap-2">
                     <label for="accBal">موجودی اولیه</label>
-                    <InputNumber id="accBal" v-model="newAccountBalance" locale="fa-IR" :maxFractionDigits="0" suffix=" ریال" />
+
+                    <InputGroup>
+                        <InputNumber id="accBal" v-model="newAccountBalance" locale="fa-IR" :maxFractionDigits="0" />
+                        <InputGroupAddon>ریال</InputGroupAddon>
+                    </InputGroup>
                 </div>
             </div>
             <div class="flex justify-end gap-2">
@@ -272,7 +285,14 @@ const exportData = () => {
                 <div class="grid grid-cols-1 gap-4">
                      <div class="flex flex-col gap-2">
                         <label>مبلغ</label>
-                        <InputNumber v-model="txForm.amount" locale="fa-IR" :maxFractionDigits="0" suffix=" ریال" />
+                        <InputGroup>
+                            <InputNumber v-model="txForm.amount" locale="fa-IR" :maxFractionDigits="0" />
+                            <InputGroupAddon>ریال</InputGroupAddon>
+                        </InputGroup>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label>تاریخ</label>
+                        <PersianDatePicker v-model="txForm.date" />
                     </div>
                 </div>
                 <div class="flex flex-col gap-2">

@@ -1,5 +1,5 @@
 export const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('fa-IR').format(amount);
+    return new Intl.NumberFormat('fa-IR').format(amount) + ' ریال';
 }
 
 export const formatDate = (date: number | string | Date): string => {
