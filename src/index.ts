@@ -61,8 +61,8 @@ app.use('/*', async (c, next) => {
         const payload = await verify(token, c.env.JWT_SECRET)
         c.set('userId', payload.sub) // Set user ID for route handlers
         await next()
-    } catch (e) {
-        return c.json({ error: 'Invalid Token' }, 401)
+    } catch (e: any) {
+        return c.json({ error: 'Invalid Token', details: e.message || String(e) }, 401)
     }
 })
 
@@ -95,8 +95,8 @@ app.post('/auth/login', async (c) => {
 
         const token = await sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 }, c.env.JWT_SECRET)
         return c.json({ token, user: { id: user.id, username: user.username } })
-    } catch (e) {
-        return c.json({ error: 'Login failed' }, 500)
+    } catch (e: any) {
+        return c.json({ error: 'Login failed', details: e.message || String(e) }, 500)
     }
 })
 
