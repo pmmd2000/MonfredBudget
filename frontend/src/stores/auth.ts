@@ -34,15 +34,12 @@ export const useAuthStore = defineStore('auth', () => {
         router.push('/')
     }
 
-    async function register(username: string, password: string) {
-        await axios.post(`${API_URL}/auth/register`, { username, password })
-        await login(username, password)
-    }
+
 
     // Init interceptor
     if (token.value) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
     }
 
-    return { token, user, isAuthenticated, login, register, logout }
+    return { token, user, isAuthenticated, login, logout }
 })

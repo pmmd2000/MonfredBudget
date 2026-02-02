@@ -68,27 +68,16 @@ app.use('/*', async (c, next) => {
 
 // --- Auth Routes ---
 
-app.post('/auth/register', async (c) => {
-    try {
-        const { username, password } = await c.req.json()
-        if (!username || !password) return c.json({ error: 'Missing fields' }, 400)
+// --- Auth Routes ---
+// Registration is disabled. Users are manually inserted into the database.
 
-        // In a real app, HASH THE PASSWORD using bcrypt or argon2. 
-        // For this demo environment (no node modules for bcrypt in simple cloudflare worker easily without hassle), 
-        // we'll store as is BUT WARN about it. 
-        // Ideally: use Web Crypto API for hashing.
-        const passwordHash = password; // TODO: Implement SHA-256 via crypto.subtle
-
-        const { success } = await c.env.DB.prepare(
-            'INSERT INTO users (username, password_hash) VALUES (?, ?)'
-        ).bind(username, passwordHash).run()
-
-        if (success) return c.json({ message: 'User registered' }, 201)
-        return c.json({ error: 'Registration failed' }, 500)
-    } catch (e) {
-        return c.json({ error: 'Username likely taken' }, 409)
-    }
-})
+// Helper: SHA-256 Hash
+async function hashPassword(password: string) {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(password)
+    const hash = await crypto.subtle.digest('SHA-256', data)
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
 
 app.post('/auth/login', async (c) => {
     try {
@@ -97,7 +86,10 @@ app.post('/auth/login', async (c) => {
             'SELECT * FROM users WHERE username = ?'
         ).bind(username).first<User>()
 
-        if (!user || user.password_hash !== password) {
+        if (!user) return c.json({ error: 'Invalid credentials' }, 401)
+
+        const inputHash = await hashPassword(password)
+        if (user.password_hash !== inputHash) {
             return c.json({ error: 'Invalid credentials' }, 401)
         }
 

@@ -36,9 +36,7 @@ const handleLogin = async () => {
                         <Password id="password" v-model="password" :feedback="false" toggleMask class="w-full" inputClass="w-full" required />
                     </div>
                     <Button type="submit" label="Login" class="w-full p-button-lg" />
-                    <div class="text-center mt-2">
-                        <router-link to="/register" class="text-primary hover:underline">Create an account</router-link>
-                    </div>
+
                 </form>
             </template>
         </Card>
