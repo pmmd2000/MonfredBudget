@@ -347,7 +347,7 @@ const toggleMenu = (event: any) => {
                     <label for="accBal">موجودی اولیه</label>
 
                     <InputGroup>
-                        <InputNumber id="accBal" v-model="newAccountBalance" locale="fa-IR" :maxFractionDigits="0" />
+                        <InputNumber id="accBal" v-model="newAccountBalance" :maxFractionDigits="0" />
                         <InputGroupAddon>ریال</InputGroupAddon>
                     </InputGroup>
                 </div>
@@ -379,7 +379,7 @@ const toggleMenu = (event: any) => {
                      <div class="flex flex-col gap-2">
                         <label>مبلغ</label>
                         <InputGroup>
-                            <InputNumber v-model="txForm.amount" locale="fa-IR" :maxFractionDigits="0" />
+                            <InputNumber v-model="txForm.amount" :maxFractionDigits="0" />
                             <InputGroupAddon>ریال</InputGroupAddon>
                         </InputGroup>
                     </div>
