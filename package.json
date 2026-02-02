@@ -2,11 +2,6 @@
     "name": "mehrdad-app-backend",
     "version": "1.0.0",
     "description": "Full Stack Persian Transaction Tracker",
-    "scripts": {
-        "dev": "wrangler dev",
-        "deploy": "npm run build --prefix frontend && wrangler deploy",
-        "build": "npm run build --prefix frontend"
-    },
     "dependencies": {
         "hono": "^4.2.4"
     },
