@@ -263,6 +263,82 @@ app.get('/history', async (c) => {
     return c.json(results)
 })
 
+app.post('/history/rollback', async (c) => {
+    const userId = c.get('userId') as number
+    const body = await c.req.json<{ target_history_id: number }>()
+
+    // 1. Get the target history record to find the timestamp
+    // Verify it belongs to one of user's accounts
+    const target = await c.env.DB.prepare(`
+        SELECT h.* FROM transaction_history h
+        JOIN accounts a ON h.account_id = a.id
+        WHERE h.history_id = ? AND a.user_id = ?
+    `).bind(body.target_history_id, userId).first<TransactionHistory>()
+
+    if (!target) return c.json({ error: 'Target history not found' }, 404)
+
+    const targetTime = target.changed_at
+
+    // 2. Find all transactions that have been modified AFTER this point
+    // We need to revert them to their state AT or BEFORE targetTime
+    const affectedTransactions = await c.env.DB.prepare(`
+        SELECT DISTINCT transaction_id FROM transaction_history
+        WHERE changed_at > ?
+    `).bind(targetTime).all<{ transaction_id: number }>()
+
+    const affectedIds = affectedTransactions.results.map(r => r.transaction_id)
+
+    // 3. Process each affected transaction
+    for (const txId of affectedIds) {
+        // Find the "latest" state for this transaction that is <= targetTime
+        const stateToRestore = await c.env.DB.prepare(`
+            SELECT * FROM transaction_history
+            WHERE transaction_id = ? AND changed_at <= ?
+            ORDER BY changed_at DESC
+            LIMIT 1
+        `).bind(txId, targetTime).first<TransactionHistory>()
+
+        if (stateToRestore) {
+            // Restore to this state
+            await c.env.DB.prepare(`
+                UPDATE transactions SET 
+                    account_id = ?, amount = ?, type = ?, description = ?, date = ?, is_deleted = ? 
+                WHERE id = ?
+            `).bind(
+                stateToRestore.account_id,
+                stateToRestore.amount,
+                stateToRestore.type,
+                stateToRestore.description,
+                stateToRestore.date,
+                stateToRestore.is_deleted,
+                txId
+            ).run()
+        } else {
+            // No state existed before targetTime => It was created in the future
+            // HARD DELETE the transaction provided it belongs to the user (security check)
+            // We join accounts to verify ownership before deleting
+            const canDelete = await c.env.DB.prepare(`
+                SELECT 1 FROM transactions t JOIN accounts a ON t.account_id = a.id WHERE t.id = ? AND a.user_id = ?
+            `).bind(txId, userId).first()
+
+            if (canDelete) {
+                await c.env.DB.prepare('DELETE FROM transactions WHERE id = ?').bind(txId).run()
+            }
+        }
+    }
+
+    // 4. Delete all history records AFTER targetTime (The Future is erased)
+    // We filter by user's accounts to be safe, though transaction link should be sufficient
+    // Actually, we can just delete by history_id if we filtered affectedTransactions correctly usually,
+    // but a mass delete based on timestamp and account ownership is safer.
+    await c.env.DB.prepare(`
+        DELETE FROM transaction_history 
+        WHERE changed_at > ? AND account_id IN (SELECT id FROM accounts WHERE user_id = ?)
+    `).bind(targetTime, userId).run()
+
+    return c.json({ message: 'Time travel successful' })
+})
+
 // --- History & Revert ---
 
 app.get('/transactions/:id/history', async (c) => {

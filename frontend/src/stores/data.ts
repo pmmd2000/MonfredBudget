@@ -87,6 +87,12 @@ export const useDataStore = defineStore('data', () => {
         await fetchGlobalHistory()
     }
 
+    async function rollbackToHistory(historyId: number) {
+        await axios.post(`${API_URL}/history/rollback`, { target_history_id: historyId })
+        await sync()
+        await fetchGlobalHistory()
+    }
+
     return {
         accounts,
         transactions,
@@ -100,6 +106,7 @@ export const useDataStore = defineStore('data', () => {
         deleteTransaction,
         fetchHistory,
         fetchGlobalHistory,
-        revertTransaction
+        revertTransaction,
+        rollbackToHistory
     }
 })

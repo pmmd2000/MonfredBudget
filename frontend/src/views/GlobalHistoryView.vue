@@ -16,6 +16,14 @@ onMounted(() => {
 
 
 
+const rollback = async (historyId: number) => {
+    if (confirm('هشدار: بازگشت به این زمان باعث حذف تمام تغییراتی می‌شود که بعد از این تاریخ انجام شده‌اند. آیا مطمئن هستید؟')) {
+        await store.rollbackToHistory(historyId)
+        alert('بازگشت به عقب با موفقیت انجام شد')
+        router.push('/')
+    }
+}
+
 const getIcon = (changeType: string) => {
     switch (changeType) {
         case 'CREATE': return 'pi pi-plus'
@@ -67,13 +75,15 @@ const getIcon = (changeType: string) => {
                                     <p v-if="slotProps.item.description"><strong>توضیحات:</strong> {{ slotProps.item.description }}</p>
                                     
                                     <div v-if="slotProps.item.is_deleted" class="text-red-500 font-bold mt-2">این آیتم حذف شده است</div>
-                                    <Button v-else-if="slotProps.item.change_type !== 'DELETE'" 
-                                        label="مشاهده در تاریخچه تراکنش" 
-                                        icon="pi pi-history" 
+                                    
+                                    <Button label="بازگشت به این زمان" 
+                                        icon="pi pi-undo" 
                                         size="small" 
-                                        severity="secondary" 
-                                        @click="router.push(`/history/${slotProps.item.transaction_id}`)" 
-                                        class="mt-2" />
+                                        severity="danger" 
+                                        outlined
+                                        @click="rollback(slotProps.item.history_id)" 
+                                        class="mt-4 w-full" 
+                                        v-tooltip="'تمام تغییرات بعد از این زمان حذف خواهند شد'" />
                                 </div>
                             </template>
                         </Card>
