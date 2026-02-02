@@ -20,23 +20,22 @@ const handleLogin = async () => {
 </script>
 
 <template>
-    <div class="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 p-4">
-        <Card class="w-full max-w-md shadow-2xl backdrop-blur-md bg-white/90 dark:bg-surface-800/90">
+    <div class="flex items-center justify-center min-h-screen bg-surface-50 dark:bg-black p-4">
+        <Card class="w-full max-w-md shadow-2xl bg-white dark:bg-white text-surface-900 dark:text-black">
             <template #title>
-                <div class="text-center text-3xl font-bold mb-2">Welcome Back</div>
+                <div class="text-center text-3xl font-bold mb-2">خوش آمدید</div>
             </template>
             <template #content>
                 <form @submit.prevent="handleLogin" class="flex flex-col gap-6 p-4">
                     <div class="flex flex-col gap-2">
-                        <label for="username" class="font-semibold">Username</label>
-                        <InputText id="username" v-model="username" class="w-full" required />
+                        <label for="username" class="font-semibold">نام کاربری</label>
+                        <InputText id="username" v-model="username" class="w-full text-right" dir="rtl" required />
                     </div>
                     <div class="flex flex-col gap-2">
-                        <label for="password" class="font-semibold">Password</label>
-                        <Password id="password" v-model="password" :feedback="false" toggleMask class="w-full" inputClass="w-full" required />
+                        <label for="password" class="font-semibold">رمز عبور</label>
+                        <Password id="password" v-model="password" :feedback="false" toggleMask class="w-full" inputClass="w-full text-right" required />
                     </div>
-                    <Button type="submit" label="Login" class="w-full p-button-lg" />
-
+                    <Button type="submit" label="ورود" class="w-full p-button-lg" />
                 </form>
             </template>
         </Card>

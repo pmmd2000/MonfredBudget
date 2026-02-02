@@ -3,10 +3,15 @@
 @import "tailwindcss/utilities";
 
 :root {
-    --font-family: 'Inter', sans-serif;
+    --font-family: 'Vazirmatn', sans-serif;
 }
 
 body {
     background-color: var(--p-surface-50);
     color: var(--p-surface-900);
+}
+
+.dark body {
+    background-color: #000000;
+    color: #ffffff;
 }
