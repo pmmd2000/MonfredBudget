@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import axios from 'axios'
 import router from '../router'
 
-const API_URL = 'http://localhost:8787/api' // Adjust for production
+const API_URL = '/api' // Relative path for production
 
 export const useAuthStore = defineStore('auth', () => {
     const token = ref(localStorage.getItem('token') || '')
