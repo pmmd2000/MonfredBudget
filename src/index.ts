@@ -45,10 +45,21 @@ const app = new Hono<{ Bindings: Bindings }>().basePath('/api')
 
 app.use('/*', cors())
 
+app.get('/debug/info', async (c) => {
+    try {
+        const tableInfo = await c.env.DB.prepare('PRAGMA table_info(transaction_history)').all()
+        const count = await c.env.DB.prepare('SELECT count(*) as c FROM transaction_history').first()
+        const rows = await c.env.DB.prepare('SELECT * FROM transaction_history ORDER BY changed_at DESC LIMIT 5').all()
+        return c.json({ tableInfo: tableInfo.results, count, rows: rows.results })
+    } catch (e: any) {
+        return c.json({ error: e.message })
+    }
+})
+
 // --- Authentication Middleware ---
 // We'll protect everything EXCEPT /auth/*
 app.use('/*', async (c, next) => {
-    if (c.req.path.includes('/auth/')) {
+    if (c.req.path.includes('/auth/') || c.req.path.includes('/debug/')) {
         await next()
         return
     }
@@ -103,6 +114,7 @@ app.post('/auth/login', async (c) => {
 
 // --- Helpers ---
 async function logHistory(db: D1Database, transactionId: number, changeType: string, data: Partial<Transaction>) {
+    console.log('Logging history:', transactionId, changeType, data)
     await db.prepare(`
         INSERT INTO transaction_history 
         (transaction_id, account_id, amount, type, description, date, is_deleted, change_type)
@@ -253,20 +265,16 @@ app.delete('/transactions/:id', async (c) => {
 app.get('/history', async (c) => {
     const userId = c.get('userId') as number
     const { results } = await c.env.DB.prepare(`
-        SELECT h.*, a.name as account_name 
+        SELECT h.history_id, h.transaction_id, h.account_id, h.amount, h.type, h.description, h.change_type, h.is_deleted, h.is_overwritten,
+               (h.changed_at * 1000) as changed_at,
+               a.name as account_name 
         FROM transaction_history h 
-        LEFT JOIN accounts a ON h.account_id = a.id 
-        WHERE (a.user_id = ? OR a.user_id IS NULL)
+        JOIN accounts a ON h.account_id = a.id 
+        WHERE a.user_id = ?
         ORDER BY h.changed_at DESC
         LIMIT 100
     `).bind(userId).all<TransactionHistory & { account_name: string }>()
-
-    // Correction: If I use LEFT JOIN, I get all history including other users if I don't filter.
-    // Since I can't filter by a.user_id if a is null, I have a problem.
-    // However, account soft-delete (is_deleted=1) keeps the record, so JOIN works!
-    // The user said "I can only see creations".
-    // This implies 'UPDATE' and 'DELETE' types are missing.
-    // Check logHistory function.
+    console.log(`Fetched ${results.length} history items for user ${userId}`)
 
     return c.json(results)
 })

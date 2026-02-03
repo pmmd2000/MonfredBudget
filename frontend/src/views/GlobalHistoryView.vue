@@ -68,9 +68,7 @@ const getIcon = (changeType: string) => {
                                     <span v-if="slotProps.item.is_overwritten" class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">بازنویسی شده</span>
                                 </div>
                             </template>
-                                    <span v-if="slotProps.item.account_name" class="text-sm font-normal text-gray-500">({{ slotProps.item.account_name }})</span>
-                                </div>
-                            </template>
+
                             <template #subtitle>
                                 {{ formatDateTime(slotProps.item.changed_at) }}
                             </template>

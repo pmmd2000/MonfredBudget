@@ -178,9 +178,7 @@ const editTx = (tx: any) => {
     showTxDialog.value = true
 }
 
-const viewHistory = (id: number) => {
-    router.push(`/history/${id}`)
-}
+
 
 const deleteTx = async (id: number) => {
     if(confirm('Delete transaction?')) {
@@ -209,7 +207,7 @@ const toggleMenu = (event: any) => {
             <template #start>
                 <div class="flex flex-col">
                     <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">
-                        مدیریت مالی شخصی
+                        Monfred Budget
                     </h1>
                     <span class="text-sm text-surface-500">خوش آمدید، {{ auth.user?.username }}</span>
                 </div>
