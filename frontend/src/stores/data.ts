@@ -22,6 +22,7 @@ export interface Transaction {
 }
 
 export interface TransactionHistory {
+    history_id: number
     id: number
     transaction_id: number
     change_type: string
@@ -31,6 +32,8 @@ export interface TransactionHistory {
     date: number
     changed_at: number
     is_deleted: number
+    is_overwritten?: number
+    account_name?: string
 }
 
 export const useDataStore = defineStore('data', () => {
@@ -75,9 +78,19 @@ export const useDataStore = defineStore('data', () => {
         history.value = data
     }
 
-    async function fetchGlobalHistory() {
-        const { data } = await axios.get(`${API_URL}/history`)
-        globalHistory.value = data
+    async function fetchGlobalHistory(cursor?: number) {
+        try {
+            const url = cursor ? `${API_URL}/history?cursor=${cursor}` : `${API_URL}/history`
+            const { data } = await axios.get<TransactionHistory[]>(url)
+
+            if (cursor) {
+                globalHistory.value.push(...data)
+            } else {
+                globalHistory.value = data
+            }
+        } catch (error) {
+            console.error('Failed to fetch global history:', error)
+        }
     }
 
     async function revertTransaction(id: number, historyId: number) {

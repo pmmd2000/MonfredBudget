@@ -14,6 +14,13 @@ onMounted(() => {
     store.fetchGlobalHistory()
 })
 
+const loadMore = async () => {
+    if (store.globalHistory.length > 0) {
+        const lastItem = store.globalHistory[store.globalHistory.length - 1]
+        await store.fetchGlobalHistory(lastItem.history_id)
+    }
+}
+
 
 
 const rollback = async (historyId: number) => {
@@ -74,7 +81,7 @@ const getIcon = (changeType: string) => {
                             </template>
                             <template #content>
                                 <div class="space-y-2 text-sm">
-                                    <p><strong>مبلغ:</strong> {{ formatCurrency(slotProps.item.amount) }} ریال</p>
+                                    <p><strong>مبلغ:</strong> {{ formatCurrency(slotProps.item.amount) }}</p>
                                     <p v-if="slotProps.item.description"><strong>توضیحات:</strong> {{ slotProps.item.description }}</p>
                                     
                                     <div v-if="slotProps.item.is_deleted" class="text-red-500 font-bold mt-2">این آیتم حذف شده است</div>
@@ -93,6 +100,9 @@ const getIcon = (changeType: string) => {
                         </Card>
                     </template>
                 </Timeline>
+                <div class="text-center mt-4" v-if="store.globalHistory.length > 0 && store.globalHistory.length % 100 === 0">
+                    <Button label="نمایش بیشتر" icon="pi pi-chevron-down" text @click="loadMore" />
+                </div>
             </template>
         </Card>
     </div>

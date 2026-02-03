@@ -262,19 +262,53 @@ app.delete('/transactions/:id', async (c) => {
     return c.json({ error: 'Failed' }, 500)
 })
 
+app.post('/debug/normalize-dates', async (c) => {
+    try {
+        const { results } = await c.env.DB.prepare('SELECT history_id, changed_at FROM transaction_history').all<{ history_id: number, changed_at: number }>()
+        let fixed = 0
+        for (const row of results) {
+            let newDate = row.changed_at
+            // If date is > year 3000 (approx 32503680000 sec), assume it's MS multiplied by 1000 accidentally, or just plain MS that shouldn't be here if we want seconds in DB?
+            // Wait, the DB SHOULD store Seconds (unixepoch default).
+            // User said "I changed the newly data with seconds to milliseonds like before, and I'm getting strange dates".
+            // If user manually updated seconds to ms, they are now 13 digits (e.g. 1700000000000).
+            // My GET /history query ALREADY handles this via CASE logic.
+            // BUT user wants to "fix my data". So we should convert everything to Seconds in DB.
+
+            if (newDate > 1000000000000) { // It's in Milliseconds (13 digits)
+                newDate = Math.floor(newDate / 1000)
+                await c.env.DB.prepare('UPDATE transaction_history SET changed_at = ? WHERE history_id = ?').bind(newDate, row.history_id).run()
+                fixed++
+            }
+        }
+        return c.json({ message: `Normalized ${fixed} records to seconds.` })
+    } catch (e: any) {
+        return c.json({ error: e.message })
+    }
+})
+
 app.get('/history', async (c) => {
     const userId = c.get('userId') as number
-    const { results } = await c.env.DB.prepare(`
+    const cursor = c.req.query('cursor')
+
+    let query = `
         SELECT h.history_id, h.transaction_id, h.account_id, h.amount, h.type, h.description, h.change_type, h.is_deleted, h.is_overwritten,
-               (h.changed_at * 1000) as changed_at,
+               (CASE WHEN h.changed_at > 100000000000 THEN h.changed_at ELSE h.changed_at * 1000 END) as changed_at,
                a.name as account_name 
         FROM transaction_history h 
         JOIN accounts a ON h.account_id = a.id 
         WHERE a.user_id = ?
-        ORDER BY h.changed_at DESC
-        LIMIT 100
-    `).bind(userId).all<TransactionHistory & { account_name: string }>()
-    console.log(`Fetched ${results.length} history items for user ${userId}`)
+    `
+    const params: any[] = [userId]
+
+    if (cursor) {
+        query += ' AND h.history_id < ?'
+        params.push(Number(cursor))
+    }
+
+    query += ' ORDER BY h.history_id DESC LIMIT 100'
+
+    const { results } = await c.env.DB.prepare(query).bind(...params).all<TransactionHistory & { account_name: string }>()
 
     return c.json(results)
 })
