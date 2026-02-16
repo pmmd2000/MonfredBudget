@@ -32,6 +32,7 @@ const newAccountName = ref('')
 const newAccountBalance = ref(0)
 const editingTxId = ref<number | null>(null)
 const menu = ref()
+const selectedAccountId = ref<number | null>(null)
 
 const menuItems = ref([
     {
@@ -77,48 +78,30 @@ const exportOptions = ref({
 
 const transactionTypes = ['EXPENSE', 'INCOME']
 
+const filteredTransactions = computed(() => {
+    if (selectedAccountId.value === null) {
+        return store.transactions
+    }
+    return store.transactions.filter(t => t.account_id === selectedAccountId.value)
+})
+
 // Totals Computed
-const totalIncome = computed(() => store.transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0))
-const totalExpense = computed(() => store.transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + t.amount, 0))
+const totalIncome = computed(() => filteredTransactions.value.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0))
+const totalExpense = computed(() => filteredTransactions.value.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + t.amount, 0))
 const netBalance = computed(() => totalIncome.value - totalExpense.value)
 
 const sortedTransactions = computed(() => {
-    // 1. Sort transactions: user date DESC, then created_at DESC
-    const sorted = [...store.transactions].sort((a, b) => {
+    const sorted = [...filteredTransactions.value].sort((a, b) => {
         if (b.date !== a.date) {
-            // Sort by User Date DESC
             return b.date - a.date
         }
-        // If dates are equal, sort by Creation Time DESC (assuming higher ID is newer if created_at is not available, but user said creation time)
-        // store.transactions has created_at
         return (b.created_at || 0) - (a.created_at || 0)
     })
-
-    // 2. Calculate running balance (accumulative total)
-    // The user wants: "the first row's total is the accumalation of all of the rows before that"
-    // Since we are showing NEWEST first (DESC), the logic is a bit tricky.
-    // Logic: 
-    // Total Net Worth (current) = Sum of all Account Balances
-    // The first row (topmost, newest) should show this Total Net Worth as its balance (AFTER the tx).
-    // Then we subtract the amount of the current row to find the balance for the next row.
-    // If tx is INCOME, it added to balance, so previous balance was Current - Amount.
-    // If tx is EXPENSE, it subtracted from balance, so previous balance was Current + Amount.
-
-    // 2. Calculate running balance (accumulative total)
-    // The user wants: "the first row's total is the accumalation of all of the rows before that"
-    // Since we are showing NEWEST first (DESC), the logic is a bit tricky.
-    // Logic: 
-    // Total Net Worth (current) = Total Income - Total Expense (per user request to match 'Traz Kolli')
-    // The first row (topmost, newest) should show this Total Net Worth as its balance (AFTER the tx).
-    // Then we subtract the amount of the current row to find the balance for the next row.
-    // If tx is INCOME, it added to balance, so previous balance was Current - Amount.
-    // If tx is EXPENSE, it subtracted from balance, so previous balance was Current + Amount.
 
     let currentBalance = netBalance.value
 
     return sorted.map(tx => {
         const balanceAfterDoc = currentBalance
-        // Prepare for next iteration (previous in time)
         if (tx.type === 'INCOME') {
             currentBalance -= tx.amount
         } else {
@@ -145,6 +128,10 @@ const createAccount = async () => {
 }
 
 const saveTx = async () => {
+    if (!txForm.value.account_id && selectedAccountId.value) {
+        txForm.value.account_id = selectedAccountId.value
+    }
+    
     if (editingTxId.value) {
         await store.updateTransaction(editingTxId.value, txForm.value)
     } else {
@@ -157,7 +144,7 @@ const saveTx = async () => {
 const openTxDialog = () => {
     editingTxId.value = null
     txForm.value = {
-        account_id: store.accounts.length > 0 ? store.accounts[0].id : 0,
+        account_id: selectedAccountId.value || (store.accounts.length > 0 ? store.accounts[0].id : 0),
         amount: 0,
         type: 'EXPENSE',
         description: '',
@@ -178,8 +165,6 @@ const editTx = (tx: any) => {
     showTxDialog.value = true
 }
 
-
-
 const deleteTx = async (id: number) => {
     if(confirm('Delete transaction?')) {
         await store.deleteTransaction(id)
@@ -189,7 +174,12 @@ const deleteTx = async (id: number) => {
 const exportData = async () => {
     const limit = exportOptions.value.limit
     
-    const url = router.resolve({ name: 'export', query: { limit: limit.toString() } }).href
+    const query: any = { limit: limit.toString() }
+    if (selectedAccountId.value) {
+        query.accountId = selectedAccountId.value.toString()
+    }
+
+    const url = router.resolve({ name: 'export', query: query }).href
     window.open(url, '_blank')
     showExportDialog.value = false
 }
@@ -197,6 +187,17 @@ const exportData = async () => {
 const toggleMenu = (event: any) => {
     menu.value.toggle(event)
 }
+
+const selectAccount = (id: number | null) => {
+    selectedAccountId.value = id
+    showAccountDrawer.value = false
+}
+
+const currentAccountName = computed(() => {
+    if (!selectedAccountId.value) return 'همه حساب‌ها'
+    const acc = store.accounts.find(a => a.id === selectedAccountId.value)
+    return acc ? acc.name : 'Unknown Account'
+})
 
 </script>
 
@@ -209,11 +210,11 @@ const toggleMenu = (event: any) => {
                     <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">
                         Monfred Budget
                     </h1>
-                    <span class="text-sm text-surface-500">خوش آمدید، {{ auth.user?.username }}</span>
+                    <span class="text-sm text-surface-500" v-if="selectedAccountId">حساب: <span class="font-bold text-black">{{ currentAccountName }}</span></span>
+                    <span class="text-sm text-surface-500" v-else>خوش آمدید، {{ auth.user?.username }}</span>
                 </div>
             </template>
             <template #end>
-
                 <div class="flex gap-2">
                     <!-- Desktop Buttons -->
                     <div class="hidden md:flex gap-2">
@@ -234,12 +235,17 @@ const toggleMenu = (event: any) => {
         <!-- Account Drawer -->
         <Drawer v-model:visible="showAccountDrawer" header="لیست حساب‌ها" position="right" class="!w-full md:!w-80">
             <div class="flex flex-col gap-4">
+                <Button label="همه حساب‌ها" icon="pi pi-list" :outlined="selectedAccountId !== null" :severity="selectedAccountId === null ? 'primary' : 'secondary'" class="w-full" @click="selectAccount(null)" />
+                
                 <div class="space-y-3">
-                    <Card v-for="acc in store.accounts" :key="acc.id" class="shadow-sm border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900">
+                    <Card v-for="acc in store.accounts" :key="acc.id" 
+                        class="shadow-sm border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 cursor-pointer hover:shadow-md transition-shadow"
+                        :class="{'!border-primary-500 !bg-blue-50': selectedAccountId === acc.id}"
+                        @click="selectAccount(acc.id)">
                         <template #title>
                             <div class="flex justify-between items-center text-base">
                                 <span>{{ acc.name }}</span>
-                                <i class="pi pi-wallet text-primary-500"></i>
+                                <i class="pi pi-wallet" :class="selectedAccountId === acc.id ? 'text-primary-600' : 'text-surface-400'"></i>
                             </div>
                         </template>
                         <template #content>
@@ -250,7 +256,7 @@ const toggleMenu = (event: any) => {
                     </Card>
                 </div>
                 
-                <Button label="افزودن حساب جدید" icon="pi pi-plus" outlined class="w-full" @click="showAccountDialog = true" />
+                <Button label="افزودن حساب جدید" icon="pi pi-plus" outlined class="w-full mt-4" @click="showAccountDialog = true" />
             </div>
         </Drawer>
 
@@ -259,7 +265,7 @@ const toggleMenu = (event: any) => {
              <Card class="bg-green-50 border-s-4 border-green-500 shadow-sm">
                 <template #content>
                     <div class="flex flex-col">
-                        <span class="text-surface-600 mb-1">مجموع درآمد</span>
+                        <span class="text-surface-600 mb-1">مجموع درآمد ({{ currentAccountName }})</span>
                         <div class="text-2xl font-bold text-green-600">{{ formatCurrency(totalIncome) }}</div>
                     </div>
                 </template>
@@ -267,7 +273,7 @@ const toggleMenu = (event: any) => {
             <Card class="bg-red-50 border-s-4 border-red-500 shadow-sm">
                 <template #content>
                     <div class="flex flex-col">
-                        <span class="text-surface-600 mb-1">مجموع هزینه</span>
+                        <span class="text-surface-600 mb-1">مجموع هزینه ({{ currentAccountName }})</span>
                         <div class="text-2xl font-bold text-red-600">{{ formatCurrency(totalExpense) }}</div>
                     </div>
                 </template>
@@ -275,7 +281,7 @@ const toggleMenu = (event: any) => {
             <Card class="bg-blue-50 border-s-4 border-blue-500 shadow-sm">
                 <template #content>
                     <div class="flex flex-col">
-                        <span class="text-surface-600 mb-1">تراز کلی</span>
+                        <span class="text-surface-600 mb-1">تراز ({{ currentAccountName }})</span>
                         <div class="text-2xl font-bold" :class="netBalance >= 0 ? 'text-blue-600' : 'text-red-600'">
                             {{ formatCurrency(netBalance) }}
                         </div>
@@ -284,15 +290,14 @@ const toggleMenu = (event: any) => {
             </Card>
         </div>
 
-
-
-        <!-- Accounts Grid Moved to Drawer -->
-
         <!-- Transactions Table -->
         <Card class="shadow-lg bg-white dark:bg-white text-surface-900 dark:text-black">
             <template #title>
                 <div class="flex justify-between items-center text-surface-900 dark:text-black">
-                    <span>تراکنش‌های اخیر</span>
+                    <div class="flex items-center gap-2">
+                        <span>تراکنش‌های اخیر</span>
+                        <Tag v-if="selectedAccountId" severity="info" :value="currentAccountName" />
+                    </div>
                     <Button label="تراکنش جدید" icon="pi pi-plus" @click="openTxDialog" />
                 </div>
             </template>
