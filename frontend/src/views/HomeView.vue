@@ -251,7 +251,7 @@ const currentAccountName = computed(() => {
                             </div>
                         </template>
                         <template #content>
-                            <div class="text-xl font-bold text-surface-900 dark:text-surface-0">
+                            <div class="text-xl font-bold text-gray-800">
                                 {{ formatCurrency(acc.balance) }}
                             </div>
                         </template>

@@ -34,9 +34,21 @@ export const useAuthStore = defineStore('auth', () => {
         router.push('/')
     }
 
+    // Silently refresh token on app load — extends session by 30 days each time
+    async function refreshToken() {
+        try {
+            const { data } = await axios.post(`${API_URL}/auth/refresh`)
+            setAuth(data.token, data.user)
+        } catch {
+            // Token invalid/expired — will be caught by 401 interceptor
+        }
+    }
+
     // Init interceptor
     if (token.value) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+        // Auto-refresh token on app startup
+        refreshToken()
     }
 
     // Intercept 401 responses to redirect to login
@@ -44,9 +56,9 @@ export const useAuthStore = defineStore('auth', () => {
         (response) => response,
         (error) => {
             if (error.response && error.response.status === 401) {
-                // Don't redirect if we're already on the login page or this IS the login request
                 const isLoginRequest = error.config?.url?.includes('/auth/login')
-                if (!isLoginRequest) {
+                const isRefreshRequest = error.config?.url?.includes('/auth/refresh')
+                if (!isLoginRequest && !isRefreshRequest) {
                     logout()
                 }
             }

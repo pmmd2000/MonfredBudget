@@ -111,6 +111,29 @@ app.post('/auth/login', async (c) => {
     }
 })
 
+// Token refresh - issues a new token if the current one is still valid
+app.post('/auth/refresh', async (c) => {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) return c.json({ error: 'No token' }, 401)
+
+    const token = authHeader.replace('Bearer ', '')
+    try {
+        const payload = await verify(token, c.env.JWT_SECRET, 'HS256')
+        const userId = payload.sub as number
+
+        const user = await c.env.DB.prepare(
+            'SELECT id, username FROM users WHERE id = ?'
+        ).bind(userId).first<{ id: number; username: string }>()
+
+        if (!user) return c.json({ error: 'User not found' }, 404)
+
+        const newToken = await sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 }, c.env.JWT_SECRET, 'HS256')
+        return c.json({ token: newToken, user: { id: user.id, username: user.username } })
+    } catch (e: any) {
+        return c.json({ error: 'Invalid token', details: e.message || String(e) }, 401)
+    }
+})
+
 
 // --- Helpers ---
 async function logHistory(db: D1Database, transactionId: number, changeType: string, data: Partial<Transaction>) {
