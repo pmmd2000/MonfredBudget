@@ -34,12 +34,25 @@ export const useAuthStore = defineStore('auth', () => {
         router.push('/')
     }
 
-
-
     // Init interceptor
     if (token.value) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
     }
+
+    // Intercept 401 responses to redirect to login
+    axios.interceptors.response.use(
+        (response) => response,
+        (error) => {
+            if (error.response && error.response.status === 401) {
+                // Don't redirect if we're already on the login page or this IS the login request
+                const isLoginRequest = error.config?.url?.includes('/auth/login')
+                if (!isLoginRequest) {
+                    logout()
+                }
+            }
+            return Promise.reject(error)
+        }
+    )
 
     return { token, user, isAuthenticated, login, logout }
 })

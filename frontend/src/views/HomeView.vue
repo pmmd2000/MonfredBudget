@@ -29,7 +29,6 @@ const showAccountDialog = ref(false)
 const showTxDialog = ref(false)
 const showExportDialog = ref(false)
 const newAccountName = ref('')
-const newAccountBalance = ref(0)
 const editingTxId = ref<number | null>(null)
 const menu = ref()
 const selectedAccountId = ref<number | null>(null)
@@ -116,15 +115,18 @@ const sortedTransactions = computed(() => {
 })
 
 
-onMounted(() => {
-    store.sync()
+onMounted(async () => {
+    await store.sync()
+    // Auto-select the first (oldest) account
+    if (store.accounts.length > 0) {
+        selectedAccountId.value = store.accounts[0].id
+    }
 })
 
 const createAccount = async () => {
-    await store.createAccount(newAccountName.value, newAccountBalance.value)
+    await store.createAccount(newAccountName.value)
     showAccountDialog.value = false
     newAccountName.value = ''
-    newAccountBalance.value = 0
 }
 
 const saveTx = async () => {
@@ -344,14 +346,6 @@ const currentAccountName = computed(() => {
                 <div class="flex flex-col gap-2">
                     <label for="accName">نام حساب</label>
                     <InputText id="accName" v-model="newAccountName" class="text-right" dir="rtl" />
-                </div>
-                <div class="flex flex-col gap-2">
-                    <label for="accBal">موجودی اولیه</label>
-
-                    <InputGroup>
-                        <InputNumber id="accBal" v-model="newAccountBalance" :maxFractionDigits="0" />
-                        <InputGroupAddon>ریال</InputGroupAddon>
-                    </InputGroup>
                 </div>
             </div>
             <div class="flex justify-end gap-2">
