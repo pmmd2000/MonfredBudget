@@ -104,10 +104,33 @@ app.post('/auth/login', async (c) => {
             return c.json({ error: 'Invalid credentials' }, 401)
         }
 
-        const token = await sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 }, c.env.JWT_SECRET, 'HS256')
+        const token = await sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 }, c.env.JWT_SECRET, 'HS256')
         return c.json({ token, user: { id: user.id, username: user.username } })
     } catch (e: any) {
         return c.json({ error: 'Login failed', details: e.message || String(e) }, 500)
+    }
+})
+
+// Token refresh - issues a new token if the current one is still valid
+app.post('/auth/refresh', async (c) => {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) return c.json({ error: 'No token' }, 401)
+
+    const token = authHeader.replace('Bearer ', '')
+    try {
+        const payload = await verify(token, c.env.JWT_SECRET, 'HS256')
+        const userId = payload.sub as number
+
+        const user = await c.env.DB.prepare(
+            'SELECT id, username FROM users WHERE id = ?'
+        ).bind(userId).first<{ id: number; username: string }>()
+
+        if (!user) return c.json({ error: 'User not found' }, 404)
+
+        const newToken = await sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 }, c.env.JWT_SECRET, 'HS256')
+        return c.json({ token: newToken, user: { id: user.id, username: user.username } })
+    } catch (e: any) {
+        return c.json({ error: 'Invalid token', details: e.message || String(e) }, 401)
     }
 })
 
@@ -151,12 +174,12 @@ app.get('/accounts', async (c) => {
 
 app.post('/accounts', async (c) => {
     const userId = c.get('userId') as number
-    const body = await c.req.json<{ name: string; initial_balance?: number }>()
+    const body = await c.req.json<{ name: string }>()
     if (!body.name) return c.json({ error: 'Name is required' }, 400)
 
     const { success } = await c.env.DB.prepare(
-        'INSERT INTO accounts (user_id, name, balance) VALUES (?, ?, ?)'
-    ).bind(userId, body.name, body.initial_balance || 0).run()
+        'INSERT INTO accounts (user_id, name, balance) VALUES (?, ?, 0)'
+    ).bind(userId, body.name).run()
 
     return success ? c.json({ message: 'Account created' }, 201) : c.json({ error: 'Failed' }, 500)
 })
@@ -445,9 +468,15 @@ app.post('/transactions/:id/revert', async (c) => {
 
 app.get('/sync', async (c) => {
     const userId = c.get('userId') as number
-    const accounts = await c.env.DB.prepare(
-        'SELECT * FROM accounts WHERE user_id = ? AND is_deleted = 0'
-    ).bind(userId).all()
+    const accounts = await c.env.DB.prepare(`
+        SELECT a.id, a.user_id, a.name, a.created_at,
+            COALESCE(SUM(CASE WHEN t.type = 'INCOME' THEN t.amount WHEN t.type = 'EXPENSE' THEN -t.amount ELSE 0 END), 0) as balance
+        FROM accounts a
+        LEFT JOIN transactions t ON t.account_id = a.id AND t.is_deleted = 0
+        WHERE a.user_id = ? AND a.is_deleted = 0
+        GROUP BY a.id
+        ORDER BY a.created_at ASC
+    `).bind(userId).all()
 
     const transactions = await c.env.DB.prepare(`
         SELECT t.* FROM transactions t 

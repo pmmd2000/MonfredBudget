@@ -7,6 +7,7 @@ import { formatCurrency, formatDate, formatDateTime } from '../utils'
 const store = useDataStore()
 const route = useRoute()
 const limit = Number(route.query.limit) || 1000
+const accountId = route.query.accountId ? Number(route.query.accountId) : null
 
 const now = ref(Date.now())
 
@@ -18,7 +19,17 @@ onMounted(async () => {
 })
 
 const filteredTransactions = computed(() => {
-    return store.transactions.slice(0, limit)
+    let txs = store.transactions
+    if (accountId) {
+        txs = txs.filter(t => t.account_id === accountId)
+    }
+    return txs.slice(0, limit)
+})
+
+const currentAccountName = computed(() => {
+    if (!accountId) return 'همه حساب‌ها'
+    const acc = store.accounts.find(a => a.id === accountId)
+    return acc ? acc.name : 'Unknown Account'
 })
 
 const totalIncome = computed(() => filteredTransactions.value.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0))
@@ -32,6 +43,7 @@ const netBalance = computed(() => totalIncome.value - totalExpense.value)
             <div>
                 <h1 class="text-2xl font-bold">گزارش تراکنش‌ها</h1>
                 <p class="text-sm mt-1">تاریخ گزارش: {{ formatDateTime(now) }}</p>
+                <p class="text-sm mt-1">حساب: <strong>{{ currentAccountName }}</strong></p>
             </div>
             <div class="text-left">
                 <div class="text-xl font-bold">مهرداد اپ</div>

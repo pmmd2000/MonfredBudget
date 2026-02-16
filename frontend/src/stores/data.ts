@@ -48,8 +48,8 @@ export const useDataStore = defineStore('data', () => {
         transactions.value = data.transactions
     }
 
-    async function createAccount(name: string, initialBalance: number) {
-        await axios.post(`${API_URL}/accounts`, { name, initial_balance: initialBalance })
+    async function createAccount(name: string) {
+        await axios.post(`${API_URL}/accounts`, { name })
         await sync()
     }
 
