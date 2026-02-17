@@ -81,7 +81,7 @@ const getIcon = (changeType: string) => {
                             </template>
                             <template #content>
                                 <div class="space-y-2 text-sm">
-                                    <p><strong>مبلغ:</strong> {{ formatCurrency(slotProps.item.amount) }}</p>
+                                    <p><strong>مبلغ:</strong> {{ formatCurrency(slotProps.item.amount, store.getAccountCurrency(slotProps.item.account_id), store.currencies) }}</p>
                                     <p v-if="slotProps.item.description"><strong>توضیحات:</strong> {{ slotProps.item.description }}</p>
                                     
                                     <div v-if="slotProps.item.is_deleted" class="text-red-500 font-bold mt-2">این آیتم حذف شده است</div>

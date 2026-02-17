@@ -14,11 +14,20 @@ type User = {
     password_hash: string
 }
 
+type Currency = {
+    code: string
+    name: string
+    symbol: string
+    decimal_digits: number
+    rate_to_usd: number
+}
+
 type Account = {
     id: number
     user_id: number
     name: string
     balance: number
+    currency_code: string
     is_deleted: number
     created_at: number
 }
@@ -54,6 +63,12 @@ app.get('/debug/info', async (c) => {
     } catch (e: any) {
         return c.json({ error: e.message })
     }
+})
+
+// --- Currencies ---
+app.get('/currencies', async (c) => {
+    const { results } = await c.env.DB.prepare('SELECT * FROM currencies ORDER BY code').all<Currency>()
+    return c.json(results)
 })
 
 // --- Authentication Middleware ---
@@ -174,12 +189,13 @@ app.get('/accounts', async (c) => {
 
 app.post('/accounts', async (c) => {
     const userId = c.get('userId') as number
-    const body = await c.req.json<{ name: string }>()
+    const body = await c.req.json<{ name: string; currency_code?: string }>()
     if (!body.name) return c.json({ error: 'Name is required' }, 400)
+    const currencyCode = body.currency_code || 'IRR'
 
     const { success } = await c.env.DB.prepare(
-        'INSERT INTO accounts (user_id, name, balance) VALUES (?, ?, 0)'
-    ).bind(userId, body.name).run()
+        'INSERT INTO accounts (user_id, name, balance, currency_code) VALUES (?, ?, 0, ?)'
+    ).bind(userId, body.name, currencyCode).run()
 
     return success ? c.json({ message: 'Account created' }, 201) : c.json({ error: 'Failed' }, 500)
 })
@@ -469,7 +485,7 @@ app.post('/transactions/:id/revert', async (c) => {
 app.get('/sync', async (c) => {
     const userId = c.get('userId') as number
     const accounts = await c.env.DB.prepare(`
-        SELECT a.id, a.user_id, a.name, a.created_at,
+        SELECT a.id, a.user_id, a.name, a.currency_code, a.created_at,
             COALESCE(SUM(CASE WHEN t.type = 'INCOME' THEN t.amount WHEN t.type = 'EXPENSE' THEN -t.amount ELSE 0 END), 0) as balance
         FROM accounts a
         LEFT JOIN transactions t ON t.account_id = a.id AND t.is_deleted = 0
@@ -484,9 +500,12 @@ app.get('/sync', async (c) => {
         WHERE a.user_id = ? AND t.is_deleted = 0
     `).bind(userId).all()
 
+    const currencies = await c.env.DB.prepare('SELECT * FROM currencies ORDER BY code').all<Currency>()
+
     return c.json({
         accounts: accounts.results,
-        transactions: transactions.results
+        transactions: transactions.results,
+        currencies: currencies.results
     })
 })
 

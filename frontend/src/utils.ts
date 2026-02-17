@@ -1,4 +1,10 @@
-export const formatCurrency = (amount: number): string => {
+import { formatAmount, type CurrencyConfig } from './currencies'
+
+export const formatCurrency = (amount: number, currencyCode?: string, currencies?: CurrencyConfig[]): string => {
+    if (currencyCode && currencies && currencies.length > 0) {
+        return formatAmount(amount, currencyCode, currencies)
+    }
+    // Fallback: IRR formatting (backward compat)
     return new Intl.NumberFormat('fa-IR').format(amount) + ' ریال';
 }
 
