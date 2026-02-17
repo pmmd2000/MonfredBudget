@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useDataStore } from '../stores/data'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 import { formatCurrency, formatDate } from '../utils'
+import { convertAmount, getCurrencySymbol, getCurrencyDecimals } from '../currencies'
 
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -29,9 +30,13 @@ const showAccountDialog = ref(false)
 const showTxDialog = ref(false)
 const showExportDialog = ref(false)
 const newAccountName = ref('')
+const newAccountCurrency = ref('IRR')
 const editingTxId = ref<number | null>(null)
 const menu = ref()
 const selectedAccountId = ref<number | null>(null)
+
+// Display currency for "all accounts" view
+const displayCurrency = ref('IRR')
 
 const menuItems = ref([
     {
@@ -77,6 +82,30 @@ const exportOptions = ref({
 
 const transactionTypes = ['EXPENSE', 'INCOME']
 
+// The active currency code: account's own currency when viewing a specific account, displayCurrency when viewing all
+const activeCurrency = computed(() => {
+    if (selectedAccountId.value !== null) {
+        return store.getAccountCurrency(selectedAccountId.value)
+    }
+    return displayCurrency.value
+})
+
+// Format amount in the currently active currency
+const fmt = (amount: number, currencyCode?: string) => {
+    const code = currencyCode || activeCurrency.value
+    return formatCurrency(amount, code, store.currencies)
+}
+
+// Convert amount from its source currency to the display currency (for "all accounts" view)
+const convertToDisplay = (amount: number, accountId: number) => {
+    if (selectedAccountId.value !== null) {
+        // Single account view — no conversion needed
+        return amount
+    }
+    const fromCode = store.getAccountCurrency(accountId)
+    return convertAmount(amount, fromCode, displayCurrency.value, store.currencies)
+}
+
 const filteredTransactions = computed(() => {
     if (selectedAccountId.value === null) {
         return store.transactions
@@ -84,9 +113,15 @@ const filteredTransactions = computed(() => {
     return store.transactions.filter(t => t.account_id === selectedAccountId.value)
 })
 
-// Totals Computed
-const totalIncome = computed(() => filteredTransactions.value.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0))
-const totalExpense = computed(() => filteredTransactions.value.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + t.amount, 0))
+// Totals Computed (with conversion for all-accounts view)
+const totalIncome = computed(() => filteredTransactions.value
+    .filter(t => t.type === 'INCOME')
+    .reduce((sum, t) => sum + convertToDisplay(t.amount, t.account_id), 0))
+
+const totalExpense = computed(() => filteredTransactions.value
+    .filter(t => t.type === 'EXPENSE')
+    .reduce((sum, t) => sum + convertToDisplay(t.amount, t.account_id), 0))
+
 const netBalance = computed(() => totalIncome.value - totalExpense.value)
 
 const sortedTransactions = computed(() => {
@@ -101,15 +136,17 @@ const sortedTransactions = computed(() => {
 
     return sorted.map(tx => {
         const balanceAfterDoc = currentBalance
+        const convertedAmount = convertToDisplay(tx.amount, tx.account_id)
         if (tx.type === 'INCOME') {
-            currentBalance -= tx.amount
+            currentBalance -= convertedAmount
         } else {
-            currentBalance += tx.amount
+            currentBalance += convertedAmount
         }
         
         return {
             ...tx,
-            running_balance: balanceAfterDoc
+            running_balance: balanceAfterDoc,
+            converted_amount: convertedAmount
         }
     })
 })
@@ -117,16 +154,26 @@ const sortedTransactions = computed(() => {
 
 onMounted(async () => {
     await store.sync()
+    // Set display currency to most-used
+    displayCurrency.value = store.mostUsedCurrency
     // Auto-select the first (oldest) account
     if (store.accounts.length > 0) {
         selectedAccountId.value = store.accounts[0].id
     }
 })
 
+// Watch for account changes to update displayCurrency default
+watch(() => store.mostUsedCurrency, (newVal) => {
+    if (selectedAccountId.value === null) {
+        displayCurrency.value = newVal
+    }
+})
+
 const createAccount = async () => {
-    await store.createAccount(newAccountName.value)
+    await store.createAccount(newAccountName.value, newAccountCurrency.value)
     showAccountDialog.value = false
     newAccountName.value = ''
+    newAccountCurrency.value = 'IRR'
 }
 
 const saveTx = async () => {
@@ -192,6 +239,9 @@ const toggleMenu = (event: any) => {
 
 const selectAccount = (id: number | null) => {
     selectedAccountId.value = id
+    if (id === null) {
+        displayCurrency.value = store.mostUsedCurrency
+    }
     showAccountDrawer.value = false
 }
 
@@ -199,6 +249,23 @@ const currentAccountName = computed(() => {
     if (!selectedAccountId.value) return 'همه حساب‌ها'
     const acc = store.accounts.find(a => a.id === selectedAccountId.value)
     return acc ? acc.name : 'Unknown Account'
+})
+
+// Transaction dialog currency: use the selected account's currency
+const txDialogCurrency = computed(() => {
+    const accId = txForm.value.account_id
+    if (accId) {
+        return store.getAccountCurrency(accId)
+    }
+    return activeCurrency.value
+})
+
+const txDialogCurrencySymbol = computed(() => {
+    return getCurrencySymbol(txDialogCurrency.value, store.currencies)
+})
+
+const txDialogCurrencyDecimals = computed(() => {
+    return getCurrencyDecimals(txDialogCurrency.value, store.currencies)
 })
 
 </script>
@@ -214,6 +281,36 @@ const currentAccountName = computed(() => {
                     </h1>
                     <span class="text-sm text-surface-500" v-if="selectedAccountId">حساب: <span class="font-bold text-black">{{ currentAccountName }}</span></span>
                     <span class="text-sm text-surface-500" v-else>خوش آمدید، {{ auth.user?.username }}</span>
+                </div>
+            </template>
+            <template #center>
+                <!-- Currency selector visible in "all accounts" mode -->
+                <div v-if="selectedAccountId === null && store.currencies.length > 0" class="flex items-center gap-2">
+                    <label class="text-sm text-surface-600 dark:text-black whitespace-nowrap">واحد نمایش:</label>
+                    <Dropdown 
+                        v-model="displayCurrency" 
+                        :options="store.currencies" 
+                        optionLabel="code" 
+                        optionValue="code"
+                        class="w-32"
+                    >
+                        <template #option="slotProps">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold">{{ slotProps.option.symbol }}</span>
+                                <span>{{ slotProps.option.code }}</span>
+                            </div>
+                        </template>
+                        <template #value="slotProps">
+                            <div class="flex items-center gap-2" v-if="slotProps.value">
+                                <span class="font-bold">{{ getCurrencySymbol(slotProps.value, store.currencies) }}</span>
+                                <span>{{ slotProps.value }}</span>
+                            </div>
+                        </template>
+                    </Dropdown>
+                </div>
+                <!-- Show current currency when viewing a specific account -->
+                <div v-else-if="selectedAccountId !== null" class="flex items-center gap-1">
+                    <Tag severity="info" :value="activeCurrency" />
                 </div>
             </template>
             <template #end>
@@ -247,12 +344,12 @@ const currentAccountName = computed(() => {
                         <template #title>
                             <div class="flex justify-between items-center text-base">
                                 <span>{{ acc.name }}</span>
-                                <i class="pi pi-wallet" :class="selectedAccountId === acc.id ? 'text-primary-600' : 'text-surface-400'"></i>
+                                <Tag :value="acc.currency_code || 'IRR'" severity="secondary" class="text-xs" />
                             </div>
                         </template>
                         <template #content>
                             <div class="text-xl font-bold text-gray-800">
-                                {{ formatCurrency(acc.balance) }}
+                                {{ formatCurrency(acc.balance, acc.currency_code || 'IRR', store.currencies) }}
                             </div>
                         </template>
                     </Card>
@@ -268,7 +365,7 @@ const currentAccountName = computed(() => {
                 <template #content>
                     <div class="flex flex-col">
                         <span class="text-surface-600 mb-1">مجموع درآمد ({{ currentAccountName }})</span>
-                        <div class="text-2xl font-bold text-green-600">{{ formatCurrency(totalIncome) }}</div>
+                        <div class="text-2xl font-bold text-green-600">{{ fmt(totalIncome) }}</div>
                     </div>
                 </template>
             </Card>
@@ -276,7 +373,7 @@ const currentAccountName = computed(() => {
                 <template #content>
                     <div class="flex flex-col">
                         <span class="text-surface-600 mb-1">مجموع هزینه ({{ currentAccountName }})</span>
-                        <div class="text-2xl font-bold text-red-600">{{ formatCurrency(totalExpense) }}</div>
+                        <div class="text-2xl font-bold text-red-600">{{ fmt(totalExpense) }}</div>
                     </div>
                 </template>
             </Card>
@@ -285,7 +382,7 @@ const currentAccountName = computed(() => {
                     <div class="flex flex-col">
                         <span class="text-surface-600 mb-1">تراز ({{ currentAccountName }})</span>
                         <div class="text-2xl font-bold" :class="netBalance >= 0 ? 'text-blue-600' : 'text-red-600'">
-                            {{ formatCurrency(netBalance) }}
+                            {{ fmt(netBalance) }}
                         </div>
                     </div>
                 </template>
@@ -313,13 +410,13 @@ const currentAccountName = computed(() => {
                     <Column field="description" header="توضیحات" class="text-right"></Column>
                     <Column field="running_balance" header="مانده" class="text-right">
                         <template #body="slotProps">
-                            {{ formatCurrency(slotProps.data.running_balance) }}
+                            {{ fmt(slotProps.data.running_balance) }}
                         </template>
                     </Column>
                     <Column field="amount" header="مبلغ" class="text-right">
                         <template #body="slotProps">
                             <span :class="slotProps.data.type === 'INCOME' ? 'text-green-600' : 'text-red-600'" class="font-bold">
-                                {{ slotProps.data.type === 'INCOME' ? '+' : '-' }}{{ formatCurrency(slotProps.data.amount) }}
+                                {{ slotProps.data.type === 'INCOME' ? '+' : '-' }}{{ fmt(slotProps.data.converted_amount) }}
                             </span>
                         </template>
                     </Column>
@@ -347,6 +444,29 @@ const currentAccountName = computed(() => {
                     <label for="accName">نام حساب</label>
                     <InputText id="accName" v-model="newAccountName" class="text-right" dir="rtl" />
                 </div>
+                <div class="flex flex-col gap-2">
+                    <label>واحد پول</label>
+                    <Dropdown 
+                        v-model="newAccountCurrency" 
+                        :options="store.currencies" 
+                        optionLabel="code" 
+                        optionValue="code"
+                        class="w-full"
+                    >
+                        <template #option="slotProps">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold w-8">{{ slotProps.option.symbol }}</span>
+                                <span>{{ slotProps.option.code }} - {{ slotProps.option.name }}</span>
+                            </div>
+                        </template>
+                        <template #value="slotProps">
+                            <div class="flex items-center gap-2" v-if="slotProps.value">
+                                <span class="font-bold">{{ getCurrencySymbol(slotProps.value, store.currencies) }}</span>
+                                <span>{{ slotProps.value }}</span>
+                            </div>
+                        </template>
+                    </Dropdown>
+                </div>
             </div>
             <div class="flex justify-end gap-2">
                 <Button type="button" label="انصراف" severity="secondary" @click="showAccountDialog = false"></Button>
@@ -358,7 +478,14 @@ const currentAccountName = computed(() => {
             <div class="flex flex-col gap-4 mb-4">
                 <div class="flex flex-col gap-2">
                     <label>حساب</label>
-                    <Dropdown v-model="txForm.account_id" :options="store.accounts" optionLabel="name" optionValue="id" class="text-right" overlayClass="text-right" />
+                    <Dropdown v-model="txForm.account_id" :options="store.accounts" optionLabel="name" optionValue="id" class="text-right" overlayClass="text-right">
+                        <template #option="slotProps">
+                            <div class="flex items-center gap-2 justify-between w-full">
+                                <span>{{ slotProps.option.name }}</span>
+                                <Tag :value="slotProps.option.currency_code || 'IRR'" severity="secondary" class="text-xs" />
+                            </div>
+                        </template>
+                    </Dropdown>
                 </div>
                 <div class="flex flex-col gap-2">
                     <label>نوع</label>
@@ -375,8 +502,8 @@ const currentAccountName = computed(() => {
                      <div class="flex flex-col gap-2">
                         <label>مبلغ</label>
                         <InputGroup>
-                            <InputNumber v-model="txForm.amount" :maxFractionDigits="0" />
-                            <InputGroupAddon>ریال</InputGroupAddon>
+                            <InputNumber v-model="txForm.amount" :maxFractionDigits="txDialogCurrencyDecimals" />
+                            <InputGroupAddon>{{ txDialogCurrencySymbol }}</InputGroupAddon>
                         </InputGroup>
                     </div>
                     <div class="flex flex-col gap-2">

@@ -3,6 +3,7 @@ import { onMounted, computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDataStore } from '../stores/data'
 import { formatCurrency, formatDate, formatDateTime } from '../utils'
+import { getCurrencySymbol } from '../currencies'
 
 const store = useDataStore()
 const route = useRoute()
@@ -35,6 +36,17 @@ const currentAccountName = computed(() => {
 const totalIncome = computed(() => filteredTransactions.value.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0))
 const totalExpense = computed(() => filteredTransactions.value.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + t.amount, 0))
 const netBalance = computed(() => totalIncome.value - totalExpense.value)
+
+const activeCurrency = computed(() => {
+    if (accountId) {
+        return store.getAccountCurrency(accountId)
+    }
+    return store.mostUsedCurrency
+})
+
+const currencySymbol = computed(() => getCurrencySymbol(activeCurrency.value, store.currencies))
+
+const fmt = (amount: number) => formatCurrency(amount, activeCurrency.value, store.currencies)
 </script>
 
 <template>
@@ -54,15 +66,15 @@ const netBalance = computed(() => totalIncome.value - totalExpense.value)
         <div class="grid grid-cols-3 gap-4 mb-8">
             <div class="border border-black p-4 text-center">
                 <div class="text-sm text-gray-600">مجموع درآمد</div>
-                <div class="text-xl font-bold text-green-700">{{ formatCurrency(totalIncome) }} ریال</div>
+                <div class="text-xl font-bold text-green-700">{{ fmt(totalIncome) }}</div>
             </div>
              <div class="border border-black p-4 text-center">
                 <div class="text-sm text-gray-600">مجموع هزینه</div>
-                <div class="text-xl font-bold text-red-700">{{ formatCurrency(totalExpense) }} ریال</div>
+                <div class="text-xl font-bold text-red-700">{{ fmt(totalExpense) }}</div>
             </div>
              <div class="border border-black p-4 text-center">
                 <div class="text-sm text-gray-600">تراز</div>
-                <div class="text-xl font-bold" :class="netBalance >= 0 ? 'text-blue-700' : 'text-red-700'">{{ formatCurrency(netBalance) }} ریال</div>
+                <div class="text-xl font-bold" :class="netBalance >= 0 ? 'text-blue-700' : 'text-red-700'">{{ fmt(netBalance) }}</div>
             </div>
         </div>
 
@@ -72,7 +84,7 @@ const netBalance = computed(() => totalIncome.value - totalExpense.value)
                     <th class="border border-black p-2 text-right">تاریخ</th>
                     <th class="border border-black p-2 text-right">توضیحات</th>
                     <th class="border border-black p-2 text-right">نوع</th>
-                    <th class="border border-black p-2 text-right">مبلغ (ریال)</th>
+                    <th class="border border-black p-2 text-right">مبلغ ({{ currencySymbol }})</th>
                 </tr>
             </thead>
             <tbody>
@@ -81,7 +93,7 @@ const netBalance = computed(() => totalIncome.value - totalExpense.value)
                     <td class="border border-black p-2">{{ tx.description || '-' }}</td>
                     <td class="border border-black p-2">{{ tx.type === 'INCOME' ? 'درآمد' : 'هزینه' }}</td>
                     <td class="border border-black p-2" dir="ltr" :class="tx.type === 'INCOME' ? 'text-green-700' : 'text-red-700'">
-                        {{ formatCurrency(tx.amount) }}
+                        {{ fmt(tx.amount) }}
                     </td>
                 </tr>
             </tbody>

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import axios from 'axios'
+import type { CurrencyConfig } from '../currencies'
 
 const API_URL = '/api'
 
@@ -8,6 +9,7 @@ export interface Account {
     id: number
     name: string
     balance: number
+    currency_code: string
     created_at: number
 }
 
@@ -39,17 +41,40 @@ export interface TransactionHistory {
 export const useDataStore = defineStore('data', () => {
     const accounts = ref<Account[]>([])
     const transactions = ref<Transaction[]>([])
+    const currencies = ref<CurrencyConfig[]>([])
     const history = ref<TransactionHistory[]>([])
     const globalHistory = ref<(TransactionHistory & { account_name?: string })[]>([])
+
+    // Most used currency across all accounts (mode)
+    const mostUsedCurrency = computed(() => {
+        if (accounts.value.length === 0) return 'IRR'
+        const counts: Record<string, number> = {}
+        for (const acc of accounts.value) {
+            const code = acc.currency_code || 'IRR'
+            counts[code] = (counts[code] || 0) + 1
+        }
+        let maxCode = 'IRR'
+        let maxCount = 0
+        for (const [code, count] of Object.entries(counts)) {
+            if (count > maxCount) {
+                maxCount = count
+                maxCode = code
+            }
+        }
+        return maxCode
+    })
 
     async function sync() {
         const { data } = await axios.get(`${API_URL}/sync`)
         accounts.value = data.accounts
         transactions.value = data.transactions
+        if (data.currencies) {
+            currencies.value = data.currencies
+        }
     }
 
-    async function createAccount(name: string) {
-        await axios.post(`${API_URL}/accounts`, { name })
+    async function createAccount(name: string, currencyCode: string = 'IRR') {
+        await axios.post(`${API_URL}/accounts`, { name, currency_code: currencyCode })
         await sync()
     }
 
@@ -106,11 +131,19 @@ export const useDataStore = defineStore('data', () => {
         await fetchGlobalHistory()
     }
 
+    // Helper: get currency code for an account
+    function getAccountCurrency(accountId: number): string {
+        const acc = accounts.value.find(a => a.id === accountId)
+        return acc?.currency_code || 'IRR'
+    }
+
     return {
         accounts,
         transactions,
+        currencies,
         history,
         globalHistory,
+        mostUsedCurrency,
         sync,
         createAccount,
         deleteAccount,
@@ -120,6 +153,7 @@ export const useDataStore = defineStore('data', () => {
         fetchHistory,
         fetchGlobalHistory,
         revertTransaction,
-        rollbackToHistory
+        rollbackToHistory,
+        getAccountCurrency
     }
 })
