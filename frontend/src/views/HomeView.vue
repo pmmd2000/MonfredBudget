@@ -90,16 +90,6 @@ const activeCurrency = computed(() => {
     return displayCurrency.value
 })
 
-// Active currency symbol for the input addon
-const activeCurrencySymbol = computed(() => {
-    return getCurrencySymbol(activeCurrency.value, store.currencies)
-})
-
-// Active currency decimal digits for the InputNumber
-const activeCurrencyDecimals = computed(() => {
-    return getCurrencyDecimals(activeCurrency.value, store.currencies)
-})
-
 // Format amount in the currently active currency
 const fmt = (amount: number, currencyCode?: string) => {
     const code = currencyCode || activeCurrency.value
@@ -114,14 +104,6 @@ const convertToDisplay = (amount: number, accountId: number) => {
     }
     const fromCode = store.getAccountCurrency(accountId)
     return convertAmount(amount, fromCode, displayCurrency.value, store.currencies)
-}
-
-// Convert a balance from its source currency to the display currency
-const convertBalanceToDisplay = (balance: number, currencyCode: string) => {
-    if (selectedAccountId.value !== null) {
-        return balance
-    }
-    return convertAmount(balance, currencyCode, displayCurrency.value, store.currencies)
 }
 
 const filteredTransactions = computed(() => {
